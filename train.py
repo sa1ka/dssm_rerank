@@ -42,9 +42,6 @@ parser.add_argument('--save', type=str,  default='./params/tmp/model.pt',
                     help='path to save the final model')
 args = parser.parse_args()
 
-print '{:=^30}'.format('all args')
-for arg in vars(args):
-    print ' '.join(map(str, (arg, getattr(args, arg))))
 
 ###############################################################################
 # Training code
@@ -144,8 +141,10 @@ class Trainer(object):
         print('| {0} cor_rate {1:5.4f}'.format(prefix, cor_rate))
         return cor_rate
 
-
 if __name__ == '__main__':
+    print '{:=^30}'.format('all args')
+    for arg in vars(args):
+        print ' '.join(map(str, (arg, getattr(args, arg))))
     # Set the random seed manually for reproducibility.
     torch.manual_seed(args.seed)
     if torch.cuda.is_available():
