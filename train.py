@@ -197,7 +197,7 @@ if __name__ == '__main__':
         enc_params = enc_params
     )
 
-    criterion = nn.TripletMarginLoss()
+    criterion = nn.TripletMarginLoss(margin=0.1)
 
     if args.cuda:
         model.cuda()

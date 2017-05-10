@@ -7,6 +7,8 @@ from torch.autograd import Variable
 import torch.nn.functional as F
 from data import Dictionary, DataIter
 
+def normalize(input, p=2, dim=1, eps=1e-12):
+    return input / input.norm(p, dim).clamp(min=eps).expand_as(input)
 
 class CNNEncoder(nn.Module):
     def __init__(self, nemb, sent_len,
@@ -21,28 +23,12 @@ class CNNEncoder(nn.Module):
         self.conv3 = nn.Conv2d(1, num_filter, kernel_size=(3, nemb))
         self.conv4 = nn.Conv2d(1, num_filter, kernel_size=(4, nemb))
         self.conv5 = nn.Conv2d(1, num_filter, kernel_size=(5, nemb))
-        self.cnn_encoders = [self.conv3, self.conv4, self.conv5]
+        self.convs = [self.conv3, self.conv4, self.conv5]
 
-        #self.dnn = nn.Sequential(
-        #        nn.Linear(len(self.cnn_encoders) * num_filter, lhid[0]),
-        #        nn.ReLU(),
-        #    )
-
-        #dnn = []
-        #dnn.append(
-        #    nn.Sequential(
-        #        nn.Linear(len(self.cnn_encoders) * num_filter, lhid[0]),
-        #        nn.ReLU(),
-        #    )
-        #)
-        #for idx in range(1, len(lhid)):
-        #    dnn.append(
-        #        nn.Sequential(
-        #            nn.Linear(lhid[idx-1], lhid[idx]),
-        #            nn.ReLU(),
-        #        )
-        #    )
-        #self.dnn = nn.Sequential(*dnn)
+        self.linear1 = nn.Linear(len(self.convs) * num_filter, lhid[0])
+        self.linear2 = nn.Linear(lhid[0], lhid[1])
+        self.linear3 = nn.Linear(lhid[1], lhid[2])
+        self.linears = [self.linear1, self.linear2, self.linear3]
 
     def conv_and_pool(self, x, conv):
         x = F.relu(conv(x)).squeeze(3)
@@ -52,9 +38,13 @@ class CNNEncoder(nn.Module):
     def forward(self, embed):
         embed = embed.unsqueeze(1)
         batch_size = embed.size(0)
-        cnn_outputs = map(lambda e: self.conv_and_pool(embed, e), self.cnn_encoders)
+        cnn_outputs = map(lambda e: self.conv_and_pool(embed, e), self.convs)
         x = torch.cat(cnn_outputs, 1).view(batch_size, -1)
-        #x = self.dnn(x)
+
+        for linear in self.linears:
+            x = self.drop(x)
+            x = F.relu(linear(x))
+
         return x
 
 
@@ -117,7 +107,7 @@ class DSSM(nn.Module):
                 nemb = nemb,
                 sent_len = sent_len,
                 num_filter = enc_params['num_filter'],
-                lhid = None,
+                lhid = [512, 512, 512],
                 dropout = dropout,
                 pre_embed = pre_embed
             )
@@ -135,7 +125,7 @@ class DSSM(nn.Module):
                 nemb = nemb,
                 sent_len = sent_len,
                 num_filter = enc_params['num_filter'],
-                lhid = None,
+                lhid = [512, 512, 512],
                 dropout = dropout,
                 pre_embed = pre_embed
             )
@@ -150,7 +140,8 @@ class DSSM(nn.Module):
             neg_enc = torch.cat((c_neg, r_neg), 1)
         else:
             post_enc, cmnt_enc, neg_enc = map(self.encoder, embed)
-        return post_enc, cmnt_enc, neg_enc
+
+        return map(normalize, (post_enc, cmnt_enc, neg_enc))
 
 if __name__ == '__main__':
     dic = Dictionary('./full_dataset/train.vocab')
