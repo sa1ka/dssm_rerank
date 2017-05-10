@@ -42,9 +42,9 @@ parser.add_argument('--save', type=str,  default='./params/tmp/model.pt',
                     help='path to save the final model')
 args = parser.parse_args()
 
-print '{:=^30}'.format('all args')
+print('{:=^30}'.format('all args'))
 for arg in vars(args):
-    print ' '.join(map(str, (arg, getattr(args, arg))))
+    print(' '.join(map(str, (arg, getattr(args, arg)))))
 
 ###############################################################################
 # Training code
@@ -110,10 +110,11 @@ class Trainer(object):
 
         # At any point you can hit Ctrl + C to break out of training early.
         try:
+            decay_times = 0
             for epoch in range(1, self.max_epochs+1):
                 epoch_start_time = time.time()
                 self.__train(lr, epoch)
-                val_loss = self.evaluate(self.valid_iter)
+                val_loss = -self.evaluate(self.valid_iter)
                 print('-' * 89)
                 print('| end of epoch {:3d} | time: {:5.2f}s '.format(epoch, (time.time() - epoch_start_time),))
                 print('-' * 89)
@@ -122,14 +123,23 @@ class Trainer(object):
                     with open(args.save, 'wb') as f:
                         torch.save(self.model, f)
                     best_val_loss = val_loss
+                    decay_times = 0
+                else:
+                    print('decay once')
+                    decay_times += 1
+
+                if decay_times == 2:
+                    print('decay twice continuously, stop training')
+                    break
+
         except KeyboardInterrupt:
             print('-' * 89)
             print('Exiting from training early')
 
         # Load the best saved model.
-        with open(args.save, 'rb') as f:
-            self.model = torch.load(f)
         if not self.test_iter is None:
+            with open(args.save, 'rb') as f:
+                self.model = torch.load(f)
             self.evaluate(self.test_iter, 'test')
 
     def evaluate(self, data_source, prefix='valid'):
